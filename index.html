@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>众筹测试 · BNB</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap-wide header-top">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">B</div>
+          <div class="brand-text">
+            <span class="brand-title">BNB 众筹 <span class="badge-test">Test</span></span>
+            <span class="brand-tagline">BSC CROWDFUND</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button type="button" id="btn-connect" class="btn-pill btn-wallet">连接钱包</button>
+          <button type="button" id="btn-menu" class="btn-icon" aria-expanded="false" aria-controls="nav-drawer" aria-label="打开菜单">
+            <span class="hamburger"></span>
+          </button>
+        </div>
+      </div>
+      <div class="wrap-wide header-sub">
+        <button type="button" id="btn-switch-network" class="btn-outline-gold">切换到 BSC</button>
+        <button type="button" id="btn-copy-shortcut" class="btn-outline-gold">复制合约地址</button>
+      </div>
+    </header>
+
+    <div id="nav-backdrop" class="nav-backdrop" aria-hidden="true"></div>
+    <nav id="nav-drawer" class="nav-drawer" aria-label="页面导航">
+      <h3>导航</h3>
+      <a href="#sec-progress">众筹进度</a>
+      <a href="#sec-contract">众筹合约</a>
+      <a href="#sec-treasury">资金去向</a>
+      <a href="#sec-wallet">网络与状态</a>
+      <a href="#sec-security">安全说明</a>
+    </nav>
+
+    <main class="wrap">
+      <section class="banner-marquee-wrap" id="sec-banner" aria-label="滚动宣传图">
+        <div class="banner-marquee">
+          <div class="banner-track" id="banner-track"></div>
+        </div>
+      </section>
+
+      <p class="lead">
+        <strong>测试版（小额）</strong>：单笔仅接受 <strong>0.0005～0.001 BNB</strong>（以链上常量为准，含边界）。
+        与正式版相同，使用 <strong>BSC 主网（chainId 56）</strong>；向众筹合约<strong>普通转账</strong>即可。
+        最多 1000 个地址、仅 EOA；逻辑与 0.5～1 BNB 正式版一致，仅金额常量不同。本页只读，不发起交易。
+      </p>
+
+      <section class="card progress-card" id="sec-progress">
+        <h2>众筹进度</h2>
+        <p class="raised-line">已众筹 <strong id="raised-amount">—</strong> <span class="raised-unit">BNB</span></p>
+        <p class="progress-caption" id="raised-caption"></p>
+        <div class="progress-block">
+          <div class="progress-head">
+            <span>参与名额</span>
+            <span class="progress-meta" id="slot-meta">—</span>
+          </div>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="slot-track">
+            <div class="progress-fill" id="slot-bar"></div>
+          </div>
+        </div>
+        <div class="progress-block">
+          <div class="progress-head">
+            <span>金额进度（相对理论满额）</span>
+            <span class="progress-meta" id="amount-meta">—</span>
+          </div>
+          <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="amount-track">
+            <div class="progress-fill progress-fill-amount" id="amount-bar"></div>
+          </div>
+        </div>
+        <p class="hint" id="progress-hint">连接钱包或等待公共节点加载链上数据。</p>
+      </section>
+
+      <section class="card" id="sec-contract">
+        <h2>众筹合约（收款地址）</h2>
+        <p class="mono" id="contract-display"></p>
+        <p class="actions">
+          <button type="button" id="btn-copy" class="btn primary">复制合约地址</button>
+        </p>
+        <p class="hint">部署测试合约后，将地址写入本目录 <code>config.js</code>。</p>
+      </section>
+
+      <section class="card" id="sec-treasury">
+        <h2>资金去向（treasury）</h2>
+        <p class="mono" id="multisig-display">加载中或请连接钱包…</p>
+        <p class="hint">以合约 <code>treasury()</code> 为准；主网请使用你可控的收款地址（如专用钱包或多签）。</p>
+      </section>
+
+      <section class="card" id="sec-wallet">
+        <h2>网络与状态</h2>
+        <p id="status" class="status"></p>
+        <p id="bounds-hint" class="hint" style="margin-top: 0.75rem"></p>
+        <p id="eoa-only-hint" class="warning" hidden>当前连接地址在链上带有合约字节码，无法通过本众筹规则入账，请改用普通 EOA 钱包。</p>
+        <p id="already-hint" class="warning" hidden>该地址已完成链上众筹，请勿再向合约转账。</p>
+      </section>
+
+      <section class="card security" id="sec-security">
+        <h2>安全说明</h2>
+        <ul>
+          <li>此为<strong>主网小额测试</strong>用页面，合约地址与 0.5～1 BNB 正式版<strong>不同</strong>，请勿混用。</li>
+          <li>金额由测试合约常量固定为 <strong>0.0005～0.001 BNB</strong>（含）。</li>
+          <li>本页不发起链上写入；转账在钱包内完成。</li>
+        </ul>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
