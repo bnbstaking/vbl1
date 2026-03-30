@@ -87,8 +87,11 @@
       return;
     }
     try {
-      await ensureBsc();
-      setStatus("已切换到 " + (cfg.chainName || "目标网络") + "（chainId " + cfg.chainId + "）。");
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x" + cfg.chainId.toString(16) }],
+      });
+      setStatus("已请求切换到 BSC（chainId " + cfg.chainId + "）。");
     } catch (e) {
       setStatus(e.message || String(e), true);
     }
@@ -205,64 +208,13 @@
     }
   }
 
-  function targetChainIdHex() {
-    return "0x" + cfg.chainId.toString(16);
-  }
-
-  function isChainNotAddedError(err) {
-    if (!err) return false;
-    if (err.code === 4902) return true;
-    const orig = err.data && err.data.originalError;
-    return !!(orig && orig.code === 4902);
-  }
-
-  async function ensureBsc() {
-    if (!window.ethereum) {
-      throw new Error("未检测到钱包扩展。");
-    }
-    let provider = new ethers.BrowserProvider(window.ethereum);
-    let net = await provider.getNetwork();
-    if (Number(net.chainId) === cfg.chainId) {
-      return;
-    }
-    const chainIdHex = targetChainIdHex();
-    try {
+  async function ensureBsc(provider) {
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== cfg.chainId) {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: chainIdHex }],
+        params: [{ chainId: "0x" + cfg.chainId.toString(16) }],
       });
-    } catch (err) {
-      if (isChainNotAddedError(err)) {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: chainIdHex,
-              chainName: cfg.chainName || "BNB Smart Chain",
-              nativeCurrency: {
-                name: "BNB",
-                symbol: "BNB",
-                decimals: 18,
-              },
-              rpcUrls: ["https://bsc-dataseed.binance.org"],
-              blockExplorerUrls: ["https://bscscan.com"],
-            },
-          ],
-        });
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: chainIdHex }],
-        });
-      } else {
-        throw err;
-      }
-    }
-    provider = new ethers.BrowserProvider(window.ethereum);
-    net = await provider.getNetwork();
-    if (Number(net.chainId) !== cfg.chainId) {
-      throw new Error(
-        "请在钱包中切换到 " + (cfg.chainName || "目标网络") + "（chainId " + cfg.chainId + "）后再试。"
-      );
     }
   }
 
@@ -384,13 +336,13 @@
       return;
     }
 
+    const provider = new ethers.BrowserProvider(window.ethereum);
     try {
-      await ensureBsc();
+      await ensureBsc(provider);
     } catch (e) {
       setStatus(e.message || String(e), true);
       return;
     }
-    const provider = new ethers.BrowserProvider(window.ethereum);
 
     setStatus("请在钱包中确认交易…");
     el.btnParticipatePay.disabled = true;
@@ -430,6 +382,14 @@
   }
 
   async function loadChainDataViaWallet() {
+    if (typeof ethers === "undefined") {
+      resetProgressUiPlaceholder();
+      el.boundsHint.textContent =
+        "未加载 ethers 库。请将 test-version 目录下的 vendor 文件夹与 index.html 一并部署，或检查 vendor/ethers.umd.min.js 是否 404。";
+      el.progressHint.textContent = "脚本 vendor/ethers.umd.min.js 加载失败时无法连接钱包或读链。";
+      setStatus("ethers 未加载，请检查 vendor 路径。", true);
+      return;
+    }
     if (!isValidAddress(cfg.contractAddress)) return;
     if (!window.ethereum) {
       resetProgressUiPlaceholder();
@@ -479,6 +439,10 @@
   }
 
   async function connect() {
+    if (typeof ethers === "undefined") {
+      setStatus("页面未加载 ethers（请确认已部署 test-version/vendor/ethers.umd.min.js 且路径正确）。", true);
+      return;
+    }
     if (!window.ethereum) {
       setStatus("请安装 MetaMask 或其它注入 window.ethereum 的钱包。", true);
       return;
@@ -490,17 +454,15 @@
 
     setStatus("连接中…");
     try {
-      const provider0 = new ethers.BrowserProvider(window.ethereum);
-      await provider0.send("eth_requestAccounts", []);
-      await ensureBsc();
       const provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
       account = await signer.getAddress();
+      await ensureBsc(provider);
 
       if (!(await attachReadContract(provider))) {
-        account = null;
-        el.connect.textContent = "连接钱包";
-        el.connect.classList.remove("is-connected");
+        el.connect.textContent = formatAddr(account);
+        el.connect.classList.add("is-connected");
         updateParticipateUiState();
         return;
       }
@@ -515,7 +477,6 @@
       }
       updateParticipateUiState();
     } catch (e) {
-      account = null;
       el.connect.textContent = "连接钱包";
       el.connect.classList.remove("is-connected");
       setStatus(e.message || String(e), true);
@@ -587,8 +548,8 @@
   }
 
   el.contractDisplay.textContent = cfg.contractAddress;
-  el.connect.addEventListener("click", connect);
-  el.copy.addEventListener("click", copyContractAddress);
+  if (el.connect) el.connect.addEventListener("click", connect);
+  if (el.copy) el.copy.addEventListener("click", copyContractAddress);
   if (el.switchNetwork) el.switchNetwork.addEventListener("click", switchToBsc);
   if (el.copyShortcut) el.copyShortcut.addEventListener("click", copyContractAddress);
 
