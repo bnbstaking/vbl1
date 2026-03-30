@@ -23,6 +23,13 @@
   const el = {
     status: document.getElementById("status"),
     connect: document.getElementById("btn-connect"),
+    btnOpenParticipate: document.getElementById("btn-open-participate"),
+    participateDialog: document.getElementById("participate-dialog"),
+    participateAmount: document.getElementById("input-participate-amount"),
+    modalRangeHint: document.getElementById("modal-range-hint"),
+    modalContractLine: document.getElementById("modal-contract-line"),
+    btnParticipateCancel: document.getElementById("btn-participate-cancel"),
+    btnParticipatePay: document.getElementById("btn-participate-pay"),
     menu: document.getElementById("btn-menu"),
     navBackdrop: document.getElementById("nav-backdrop"),
     navDrawer: document.getElementById("nav-drawer"),
@@ -48,6 +55,9 @@
   let readContract = null;
   let activeProvider = null;
   let account = null;
+  let minWeiBn = null;
+  let maxWeiBn = null;
+  let contributorCapReached = false;
 
   function setStatus(msg, isError) {
     el.status.textContent = msg;
@@ -61,6 +71,58 @@
   function formatAddr(a) {
     if (!a || a.length < 10) return a;
     return a.slice(0, 6) + "…" + a.slice(-4);
+  }
+
+  function extractRevertData(err) {
+    if (!err || typeof err !== "object") return null;
+    if (typeof err.data === "string" && err.data.startsWith("0x") && err.data.length > 10) {
+      return err.data;
+    }
+    if (err.error && typeof err.error.data === "string" && err.error.data.startsWith("0x")) {
+      return err.error.data;
+    }
+    if (
+      err.info &&
+      err.info.error &&
+      typeof err.info.error.data === "string" &&
+      err.info.error.data.startsWith("0x")
+    ) {
+      return err.info.error.data;
+    }
+    return null;
+  }
+
+  const CROWDFUND_REVERT_HINT = {
+    "0x05d252c3": "该地址已参与过众筹（AlreadyContributed）。",
+    "0x2c5211c6": "金额不在链上允许范围内（InvalidAmount）。",
+    "0x8b65824c":
+      "发送方须为普通 EOA；当前地址在链上带有合约代码，无法入账（ContractSenderNotAllowed）。请换普通外部账户，勿用智能合约钱包/多签合约地址。",
+    "0x69cf9c75": "参与名额已满（ContributorCapReached）。",
+    "0x90b8ec18":
+      "合约在收款后须立刻把 BNB 转给 treasury；若 treasury 无法接收原生 BNB，整笔交易会失败（TransferFailed）。需部署方确认 treasury 可收 BNB。",
+  };
+
+  function formatParticipateError(err) {
+    const data = extractRevertData(err);
+    if (data && data.length >= 10) {
+      const prefix = data.slice(0, 10).toLowerCase();
+      if (CROWDFUND_REVERT_HINT[prefix]) {
+        return CROWDFUND_REVERT_HINT[prefix];
+      }
+    }
+    const msg = err.shortMessage || err.message || String(err);
+    if (/estimateGas|CALL_EXCEPTION|missing revert data/i.test(msg)) {
+      return (
+        "交易在链上预检失败（无法估算 gas）。常见原因：\n" +
+        "① 智能合约钱包/多签地址（链上带字节码）会被拒；\n" +
+        "② 金额不在 minWei～maxWei；\n" +
+        "③ 该地址已参与过；\n" +
+        "④ treasury 不能接收 BNB 时整笔失败。\n" +
+        "—— 技术信息：" +
+        msg
+      );
+    }
+    return msg;
   }
 
   function setNavOpen(open) {
@@ -97,6 +159,12 @@
   }
 
   function updateProgressUi(treasury, minW, maxW, count, cap, totalRaised) {
+    minWeiBn = minW;
+    maxWeiBn = maxW;
+    const nAddr = Number(count);
+    const maxNAddr = Number(cap);
+    contributorCapReached = maxNAddr > 0 && nAddr >= maxNAddr;
+
     const minBnb = ethers.formatEther(minW);
     const maxBnb = ethers.formatEther(maxW);
     const raisedStr = ethers.formatEther(totalRaised);
@@ -145,6 +213,51 @@
       "（含边界）。仅接受 EOA。请在钱包向「众筹合约地址」转账；勿向 treasury 直接转。";
 
     el.multisigDisplay.textContent = treasury;
+    updateParticipateUiState();
+  }
+
+  function syncParticipateModal() {
+    if (!el.participateAmount || !el.modalRangeHint) return;
+    if (minWeiBn != null && maxWeiBn != null) {
+      const minB = ethers.formatEther(minWeiBn);
+      const maxB = ethers.formatEther(maxWeiBn);
+      el.modalRangeHint.textContent =
+        "单笔须在 " + minB + " ～ " + maxB + " BNB（含边界），以钱包显示为准。";
+      el.participateAmount.min = minB;
+      el.participateAmount.max = maxB;
+      const step =
+        maxWeiBn - minWeiBn <= 10n ** 15n
+          ? "0.0000001"
+          : "0.01";
+      el.participateAmount.step = step;
+      const cur = parseFloat(el.participateAmount.value);
+      const minN = parseFloat(minB);
+      const maxN = parseFloat(maxB);
+      if (isNaN(cur) || cur < minN || cur > maxN) {
+        el.participateAmount.value = minB;
+      }
+    } else {
+      el.modalRangeHint.textContent = "请先连接钱包或等待链上数据加载后再参与。";
+    }
+    if (el.modalContractLine && isValidAddress(cfg.contractAddress)) {
+      el.modalContractLine.textContent =
+        "收款合约：" + ethers.getAddress(cfg.contractAddress);
+    }
+  }
+
+  function updateParticipateUiState() {
+    if (!el.btnParticipatePay) return;
+    const blockPay =
+      minWeiBn == null ||
+      maxWeiBn == null ||
+      contributorCapReached ||
+      (el.alreadyHint && !el.alreadyHint.hidden) ||
+      (el.eoaOnlyHint && !el.eoaOnlyHint.hidden);
+    el.btnParticipatePay.disabled = blockPay;
+    if (el.btnOpenParticipate) {
+      el.btnOpenParticipate.disabled =
+        contributorCapReached && minWeiBn != null;
+    }
   }
 
   async function ensureBsc(provider) {
@@ -200,20 +313,184 @@
       el.alreadyHint.hidden = false;
       setStatus("该地址已在链上完成众筹；再次向合约转账会失败。");
     }
+    updateParticipateUiState();
   }
 
-  async function loadViaPublicRpc() {
-    if (!cfg.readRpcUrl || !isValidAddress(cfg.contractAddress)) return;
+  function openParticipateDialog() {
+    if (!el.participateDialog) return;
+    syncParticipateModal();
+    updateParticipateUiState();
     try {
-      const provider = new ethers.JsonRpcProvider(cfg.readRpcUrl);
-      if (!(await attachReadContract(provider))) return;
-      await refreshMetaFromContract();
-      setStatus("已加载链上说明。连接钱包可核对网络并查看你的地址是否已参与。");
+      if (typeof el.participateDialog.showModal === "function") {
+        el.participateDialog.showModal();
+      } else {
+        el.participateDialog.setAttribute("open", "");
+      }
+    } catch (_) {
+      el.participateDialog.setAttribute("open", "");
+    }
+  }
+
+  function closeParticipateDialog() {
+    if (!el.participateDialog) return;
+    try {
+      if (typeof el.participateDialog.close === "function") {
+        el.participateDialog.close();
+      }
+    } catch (_) {}
+    el.participateDialog.removeAttribute("open");
+  }
+
+  async function participatePay() {
+    if (!window.ethereum) {
+      setStatus("请安装钱包后再参与。", true);
+      return;
+    }
+    if (!isValidAddress(cfg.contractAddress)) {
+      setStatus("请在 config.js 中配置合约地址。", true);
+      return;
+    }
+    if (!account) {
+      await connect();
+      if (!account) return;
+    }
+    if (minWeiBn == null || maxWeiBn == null) {
+      setStatus("正在读取链上数据，请稍后再试。", true);
+      return;
+    }
+    if (contributorCapReached) {
+      setStatus("参与名额已满。", true);
+      return;
+    }
+    if (el.alreadyHint && !el.alreadyHint.hidden) {
+      setStatus("当前地址已参与过。", true);
+      return;
+    }
+    if (el.eoaOnlyHint && !el.eoaOnlyHint.hidden) {
+      setStatus("合约账户无法参与，请使用 EOA 钱包。", true);
+      return;
+    }
+
+    const rawAmt = (el.participateAmount && el.participateAmount.value
+      ? String(el.participateAmount.value).trim().replace(/,/g, "")
+      : "");
+    if (!rawAmt) {
+      setStatus("请输入金额。", true);
+      return;
+    }
+    let value;
+    try {
+      value = ethers.parseEther(rawAmt);
+    } catch (_) {
+      setStatus("金额格式无效，请使用小数点形式的 BNB。", true);
+      return;
+    }
+    if (value < minWeiBn || value > maxWeiBn) {
+      setStatus("金额须在链上允许范围内。", true);
+      return;
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    try {
+      await ensureBsc(provider);
     } catch (e) {
+      setStatus(e.message || String(e), true);
+      return;
+    }
+
+    const fromAddr = ethers.getAddress(account);
+    const senderCode = await provider.getCode(fromAddr);
+    if (senderCode && senderCode !== "0x") {
+      setStatus(
+        "当前付款地址在链上带有合约代码，众筹合约将拒绝入账。请改用普通 EOA 钱包。",
+        true
+      );
+      return;
+    }
+
+    setStatus("请在钱包中确认交易…");
+    el.btnParticipatePay.disabled = true;
+    try {
+      const signer = await provider.getSigner();
+      const to = ethers.getAddress(cfg.contractAddress);
+      const tx = await signer.sendTransaction({ to: to, value: value });
+      setStatus("已广播：" + tx.hash + "，等待确认…");
+      await tx.wait();
+      closeParticipateDialog();
+      if (readContract) {
+        await refreshMetaFromContract();
+        await refreshParticipation();
+      }
+      setStatus("交易已确认，感谢参与。");
+    } catch (e) {
+      setStatus(formatParticipateError(e), true);
+    } finally {
+      updateParticipateUiState();
+    }
+  }
+
+  function resetProgressUiPlaceholder() {
+    minWeiBn = null;
+    maxWeiBn = null;
+    contributorCapReached = false;
+    readContract = null;
+    activeProvider = null;
+    el.raisedAmount.textContent = "—";
+    el.raisedCaption.textContent = "";
+    el.slotBar.style.width = "0%";
+    el.slotMeta.textContent = "—";
+    el.amountBar.style.width = "0%";
+    el.amountMeta.textContent = "—";
+    el.multisigDisplay.textContent = "—";
+    updateParticipateUiState();
+  }
+
+  async function loadChainDataViaWallet() {
+    if (!isValidAddress(cfg.contractAddress)) return;
+    if (!window.ethereum) {
+      resetProgressUiPlaceholder();
       el.boundsHint.textContent =
-        "无法通过 readRpcUrl 读取（常见于浏览器 CORS）。请连接钱包或检查合约地址 / 网络。";
+        "未检测到钱包。请安装 MetaMask 等扩展；链上数据仅通过钱包内置 RPC 读取，本页不连接第三方只读节点。";
+      el.progressHint.textContent = "安装钱包并打开本页后自动加载；也可直接点击「连接钱包」。";
+      setStatus("请安装钱包后查看众筹进度。", true);
+      return;
+    }
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const net = await provider.getNetwork();
+      if (Number(net.chainId) !== cfg.chainId) {
+        resetProgressUiPlaceholder();
+        el.boundsHint.textContent =
+          "当前钱包网络为 chainId " +
+          String(net.chainId) +
+          "，与众筹要求的 " +
+          cfg.chainName +
+          "（chainId " +
+          cfg.chainId +
+          "）不一致。请在钱包中切换，或使用顶栏「切换到 BSC」。";
+        el.progressHint.textContent = "切换到正确网络后将通过钱包 RPC 自动加载合约数据。";
+        setStatus("请在钱包中切换至 " + cfg.chainName + "。", true);
+        return;
+      }
+      if (!(await attachReadContract(provider))) {
+        resetProgressUiPlaceholder();
+        return;
+      }
+      await refreshMetaFromContract();
+      if (account) {
+        await refreshParticipation();
+        if (el.alreadyHint.hidden && el.eoaOnlyHint.hidden) {
+          setStatus("已连接。可点击「参与众筹」输入金额并支付，或使用复制地址自行转账。");
+        }
+      } else {
+        setStatus("已通过钱包 RPC 加载链上数据。连接钱包可核对参与状态。", false);
+      }
+    } catch (e) {
+      resetProgressUiPlaceholder();
+      el.boundsHint.textContent =
+        "无法通过钱包读取链上数据（请解锁钱包或检查网络设置）。";
       el.progressHint.textContent = "加载失败：" + (e.message || String(e));
-      setStatus("", false);
+      setStatus(e.message || String(e), true);
     }
   }
 
@@ -243,12 +520,14 @@
       el.connect.textContent = formatAddr(account);
       el.connect.classList.add("is-connected");
       if (el.alreadyHint.hidden && el.eoaOnlyHint.hidden) {
-        setStatus("已连接。请在钱包内向众筹合约地址转账（见上方限额），本页不会发起交易。");
+        setStatus("已连接。可点击「参与众筹」输入金额并支付，或使用复制地址自行转账。");
       }
+      updateParticipateUiState();
     } catch (e) {
       el.connect.textContent = "连接钱包";
       el.connect.classList.remove("is-connected");
       setStatus(e.message || String(e), true);
+      updateParticipateUiState();
     }
   }
 
@@ -321,6 +600,22 @@
   if (el.switchNetwork) el.switchNetwork.addEventListener("click", switchToBsc);
   if (el.copyShortcut) el.copyShortcut.addEventListener("click", copyContractAddress);
 
+  if (el.btnOpenParticipate) {
+    el.btnOpenParticipate.addEventListener("click", openParticipateDialog);
+  }
+  if (el.btnParticipateCancel) {
+    el.btnParticipateCancel.addEventListener("click", closeParticipateDialog);
+  }
+  if (el.btnParticipatePay) {
+    el.btnParticipatePay.addEventListener("click", participatePay);
+  }
+  if (el.participateDialog) {
+    el.participateDialog.addEventListener("cancel", function (e) {
+      e.preventDefault();
+      closeParticipateDialog();
+    });
+  }
+
   if (el.menu && el.navBackdrop && el.navDrawer) {
     el.menu.addEventListener("click", function () {
       const open = !el.navDrawer.classList.contains("is-open");
@@ -336,6 +631,13 @@
     });
   }
 
+  if (window.ethereum && typeof window.ethereum.on === "function") {
+    window.ethereum.on("chainChanged", function () {
+      loadChainDataViaWallet();
+    });
+  }
+
   initBanner();
-  loadViaPublicRpc();
+  loadChainDataViaWallet();
+  updateParticipateUiState();
 })();

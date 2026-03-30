@@ -435,6 +435,7 @@ body {
 
 .status.error {
   color: var(--danger);
+  white-space: pre-line;
 }
 
 .warning {
@@ -528,4 +529,85 @@ body {
 .progress-card #progress-hint {
   margin-top: 1rem;
   margin-bottom: 0;
+}
+
+.participate-card .actions {
+  margin-top: 0.75rem;
+}
+
+.participate-dialog {
+  border: 1px solid var(--border-gold);
+  border-radius: 14px;
+  padding: 0;
+  max-width: calc(100vw - 2rem);
+  width: 22rem;
+  background: linear-gradient(200deg, #1a1510 0%, #0e0c09 100%);
+  color: var(--text);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+.participate-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+.participate-dialog-inner {
+  padding: 1.25rem 1.35rem 1.4rem;
+  margin: 0;
+}
+
+.participate-dialog h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.modal-range {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.modal-field input {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-gold);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.modal-field input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--gold-glow);
+}
+
+.modal-contract-line {
+  margin: 0.65rem 0 0;
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1.15rem;
+  flex-wrap: wrap;
+}
+
+.modal-actions .btn {
+  flex: 1 1 auto;
+  min-width: 5.5rem;
+  text-align: center;
 }
