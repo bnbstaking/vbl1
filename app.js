@@ -73,58 +73,6 @@
     return a.slice(0, 6) + "…" + a.slice(-4);
   }
 
-  function extractRevertData(err) {
-    if (!err || typeof err !== "object") return null;
-    if (typeof err.data === "string" && err.data.startsWith("0x") && err.data.length > 10) {
-      return err.data;
-    }
-    if (err.error && typeof err.error.data === "string" && err.error.data.startsWith("0x")) {
-      return err.error.data;
-    }
-    if (
-      err.info &&
-      err.info.error &&
-      typeof err.info.error.data === "string" &&
-      err.info.error.data.startsWith("0x")
-    ) {
-      return err.info.error.data;
-    }
-    return null;
-  }
-
-  const CROWDFUND_REVERT_HINT = {
-    "0x05d252c3": "该地址已参与过众筹（AlreadyContributed）。",
-    "0x2c5211c6": "金额不在链上允许范围内（InvalidAmount）。",
-    "0x8b65824c":
-      "发送方须为普通 EOA；当前地址在链上带有合约代码，无法入账（ContractSenderNotAllowed）。请换普通外部账户，勿用智能合约钱包/多签合约地址。",
-    "0x69cf9c75": "参与名额已满（ContributorCapReached）。",
-    "0x90b8ec18":
-      "合约在收款后须立刻把 BNB 转给 treasury；若 treasury 无法接收原生 BNB，整笔交易会失败（TransferFailed）。需部署方确认 treasury 可收 BNB。",
-  };
-
-  function formatParticipateError(err) {
-    const data = extractRevertData(err);
-    if (data && data.length >= 10) {
-      const prefix = data.slice(0, 10).toLowerCase();
-      if (CROWDFUND_REVERT_HINT[prefix]) {
-        return CROWDFUND_REVERT_HINT[prefix];
-      }
-    }
-    const msg = err.shortMessage || err.message || String(err);
-    if (/estimateGas|CALL_EXCEPTION|missing revert data/i.test(msg)) {
-      return (
-        "交易在链上预检失败（无法估算 gas）。常见原因：\n" +
-        "① 智能合约钱包/多签地址（链上带字节码）会被拒；\n" +
-        "② 金额不在 minWei～maxWei；\n" +
-        "③ 该地址已参与过；\n" +
-        "④ treasury 不能接收 BNB 时整笔失败。\n" +
-        "—— 技术信息：" +
-        msg
-      );
-    }
-    return msg;
-  }
-
   function setNavOpen(open) {
     if (!el.navDrawer || !el.navBackdrop || !el.menu) return;
     el.menu.setAttribute("aria-expanded", open ? "true" : "false");
@@ -139,11 +87,8 @@
       return;
     }
     try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x" + cfg.chainId.toString(16) }],
-      });
-      setStatus("已请求切换到 BSC（chainId " + cfg.chainId + "）。");
+      await ensureBsc();
+      setStatus("已切换到 " + (cfg.chainName || "目标网络") + "（chainId " + cfg.chainId + "）。");
     } catch (e) {
       setStatus(e.message || String(e), true);
     }
@@ -260,13 +205,64 @@
     }
   }
 
-  async function ensureBsc(provider) {
-    const net = await provider.getNetwork();
-    if (Number(net.chainId) !== cfg.chainId) {
+  function targetChainIdHex() {
+    return "0x" + cfg.chainId.toString(16);
+  }
+
+  function isChainNotAddedError(err) {
+    if (!err) return false;
+    if (err.code === 4902) return true;
+    const orig = err.data && err.data.originalError;
+    return !!(orig && orig.code === 4902);
+  }
+
+  async function ensureBsc() {
+    if (!window.ethereum) {
+      throw new Error("未检测到钱包扩展。");
+    }
+    let provider = new ethers.BrowserProvider(window.ethereum);
+    let net = await provider.getNetwork();
+    if (Number(net.chainId) === cfg.chainId) {
+      return;
+    }
+    const chainIdHex = targetChainIdHex();
+    try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x" + cfg.chainId.toString(16) }],
+        params: [{ chainId: chainIdHex }],
       });
+    } catch (err) {
+      if (isChainNotAddedError(err)) {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: chainIdHex,
+              chainName: cfg.chainName || "BNB Smart Chain",
+              nativeCurrency: {
+                name: "BNB",
+                symbol: "BNB",
+                decimals: 18,
+              },
+              rpcUrls: ["https://bsc-dataseed.binance.org"],
+              blockExplorerUrls: ["https://bscscan.com"],
+            },
+          ],
+        });
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: chainIdHex }],
+        });
+      } else {
+        throw err;
+      }
+    }
+    provider = new ethers.BrowserProvider(window.ethereum);
+    net = await provider.getNetwork();
+    if (Number(net.chainId) !== cfg.chainId) {
+      throw new Error(
+        "请在钱包中切换到 " + (cfg.chainName || "目标网络") + "（chainId " + cfg.chainId + "）后再试。"
+      );
     }
   }
 
@@ -371,18 +367,16 @@
       return;
     }
 
-    const rawAmt = (el.participateAmount && el.participateAmount.value
-      ? String(el.participateAmount.value).trim().replace(/,/g, "")
-      : "");
-    if (!rawAmt) {
-      setStatus("请输入金额。", true);
+    const amt = parseFloat(el.participateAmount && el.participateAmount.value);
+    if (isNaN(amt)) {
+      setStatus("请输入有效金额。", true);
       return;
     }
     let value;
     try {
-      value = ethers.parseEther(rawAmt);
+      value = ethers.parseEther(String(amt));
     } catch (_) {
-      setStatus("金额格式无效，请使用小数点形式的 BNB。", true);
+      setStatus("金额格式无效。", true);
       return;
     }
     if (value < minWeiBn || value > maxWeiBn) {
@@ -390,23 +384,13 @@
       return;
     }
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
     try {
-      await ensureBsc(provider);
+      await ensureBsc();
     } catch (e) {
       setStatus(e.message || String(e), true);
       return;
     }
-
-    const fromAddr = ethers.getAddress(account);
-    const senderCode = await provider.getCode(fromAddr);
-    if (senderCode && senderCode !== "0x") {
-      setStatus(
-        "当前付款地址在链上带有合约代码，众筹合约将拒绝入账。请改用普通 EOA 钱包。",
-        true
-      );
-      return;
-    }
+    const provider = new ethers.BrowserProvider(window.ethereum);
 
     setStatus("请在钱包中确认交易…");
     el.btnParticipatePay.disabled = true;
@@ -423,7 +407,7 @@
       }
       setStatus("交易已确认，感谢参与。");
     } catch (e) {
-      setStatus(formatParticipateError(e), true);
+      setStatus(e.message || String(e), true);
     } finally {
       updateParticipateUiState();
     }
@@ -506,13 +490,20 @@
 
     setStatus("连接中…");
     try {
+      const provider0 = new ethers.BrowserProvider(window.ethereum);
+      await provider0.send("eth_requestAccounts", []);
+      await ensureBsc();
       const provider = new ethers.BrowserProvider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
       account = await signer.getAddress();
-      await ensureBsc(provider);
 
-      if (!(await attachReadContract(provider))) return;
+      if (!(await attachReadContract(provider))) {
+        account = null;
+        el.connect.textContent = "连接钱包";
+        el.connect.classList.remove("is-connected");
+        updateParticipateUiState();
+        return;
+      }
 
       await refreshMetaFromContract();
       await refreshParticipation();
@@ -524,6 +515,7 @@
       }
       updateParticipateUiState();
     } catch (e) {
+      account = null;
       el.connect.textContent = "连接钱包";
       el.connect.classList.remove("is-connected");
       setStatus(e.message || String(e), true);
