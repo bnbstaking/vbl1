@@ -46,7 +46,6 @@ body {
   max-width: 56rem;
 }
 
-/* —— 顶栏 —— */
 .site-header {
   position: fixed;
   top: 0;
@@ -114,19 +113,6 @@ body {
   letter-spacing: 0.14em;
   color: var(--gold);
   text-transform: uppercase;
-}
-
-.badge-test {
-  display: inline-block;
-  margin-left: 0.35rem;
-  padding: 0.12rem 0.4rem;
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: #0a0806;
-  background: linear-gradient(145deg, #7eb8ff, #4a7fc4);
-  border-radius: 4px;
-  vertical-align: middle;
 }
 
 .header-actions {
@@ -234,7 +220,6 @@ body {
   box-shadow: 0 0 12px var(--gold-glow);
 }
 
-/* 侧栏菜单 */
 .nav-backdrop {
   position: fixed;
   inset: 0;
@@ -435,7 +420,6 @@ body {
 
 .status.error {
   color: var(--danger);
-  white-space: pre-line;
 }
 
 .warning {
@@ -610,4 +594,21 @@ body {
   flex: 1 1 auto;
   min-width: 5.5rem;
   text-align: center;
+}
+
+/* 微波炉火种众筹计划 — 长标题在顶栏内换行 */
+.brand-title {
+  white-space: normal;
+  line-height: 1.25;
+  max-width: min(13.5rem, 52vw);
+  font-size: 0.92rem;
+}
+@media (min-width: 420px) {
+  .brand-title {
+    font-size: 1.02rem;
+    max-width: 17rem;
+  }
+}
+.brand-mark {
+  font-size: 0.95rem;
 }

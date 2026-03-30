@@ -118,13 +118,13 @@
     const raisedStr = ethers.formatEther(totalRaised);
     el.raisedAmount.textContent = formatBnbDisplay(raisedStr);
     el.raisedCaption.textContent =
-      "统计口径：链上累计成功入账额（随即转至 treasury）。满额理论上限约 " +
+      "统计口径：链上累计成功入账额（随即转至多签）。满额理论上限约 " +
       formatBnbDisplay(ethers.formatEther(BigInt(cap) * BigInt(maxW.toString()))) +
-      "（最多 " +
+      " BNB（最多 " +
       String(cap) +
       " 人 × 单笔至多 " +
       formatBnbDisplay(maxBnb) +
-      "）。";
+      " BNB）。";
 
     const n = Number(count);
     const maxN = Number(cap);
@@ -158,7 +158,7 @@
       formatBnbDisplay(minBnb) +
       " ～ " +
       formatBnbDisplay(maxBnb) +
-      "（含边界）。仅接受 EOA。请在钱包向「众筹合约地址」转账；勿向 treasury 直接转。";
+      " BNB（含边界）。仅接受 EOA：合约地址作为发送方会失败。请在钱包向「众筹合约地址」发起普通 BNB 转账；勿向多签直接转。";
 
     el.multisigDisplay.textContent = treasury;
     updateParticipateUiState();
@@ -385,7 +385,7 @@
     if (typeof ethers === "undefined") {
       resetProgressUiPlaceholder();
       el.boundsHint.textContent =
-        "未加载 ethers 库。请将 test-version 目录下的 vendor 文件夹与 index.html 一并部署，或检查 vendor/ethers.umd.min.js 是否 404。";
+        "未加载 ethers 库。请将 vendor 文件夹与 index.html 一并部署，或检查 vendor/ethers.umd.min.js 是否 404。";
       el.progressHint.textContent = "脚本 vendor/ethers.umd.min.js 加载失败时无法连接钱包或读链。";
       setStatus("ethers 未加载，请检查 vendor 路径。", true);
       return;
@@ -440,7 +440,7 @@
 
   async function connect() {
     if (typeof ethers === "undefined") {
-      setStatus("页面未加载 ethers（请确认已部署 test-version/vendor/ethers.umd.min.js 且路径正确）。", true);
+      setStatus("页面未加载 ethers（请确认已部署 vendor/ethers.umd.min.js 且路径正确）。", true);
       return;
     }
     if (!window.ethereum) {

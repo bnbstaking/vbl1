@@ -3,16 +3,16 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>众筹测试 · BNB</title>
+    <title>微波炉火种众筹计划 · BNB</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="site-header">
       <div class="wrap-wide header-top">
         <div class="brand-block">
-          <div class="brand-mark" aria-hidden="true">B</div>
+          <div class="brand-mark" aria-hidden="true">火</div>
           <div class="brand-text">
-            <span class="brand-title">BNB 众筹 <span class="badge-test">Test</span></span>
+            <span class="brand-title">微波炉火种众筹计划</span>
             <span class="brand-tagline">BSC CROWDFUND</span>
           </div>
         </div>
@@ -48,14 +48,14 @@
       </section>
 
       <p class="lead">
-        <strong>测试版（小额 · 主网）</strong>：单笔以链上 <code>minWei</code> / <code>maxWei</code> 为准（通常为 <strong>0.0005～0.001 BNB</strong>，含边界）。
-        与正式版相同，运行在 <strong>BSC 主网（chainId 56）</strong>；读链、发交易都走<strong>钱包为主网配置的内置 RPC</strong>（与正式版一致，非测试网节点）。
-        可向合约<strong>普通转账</strong>，或点<strong>参与众筹</strong>在弹窗输入金额后唤起钱包支付。最多 1000 个地址、仅 EOA；逻辑与正式版一致，仅合约地址与金额常量不同。
+        <strong>微波炉火种众筹计划</strong>在 BSC 主网向<strong>众筹合约</strong>转入的 BNB <strong>单笔限额以链上常量为准</strong>（当前部署为小额参数，常见约 <strong>0.0005～0.001 BNB</strong>，含边界）；
+        全链最多 <strong>1000</strong> 个地址；发送方须为 <strong>EOA</strong>。每个地址<strong>仅可成功一次</strong>，BNB 由合约转给多签。
+        可点击下方<strong>参与众筹</strong>在弹窗中输入金额，确认后将唤起钱包支付（合约 <code>receive</code> 入账）。
       </p>
 
       <section class="card participate-card" id="sec-participate">
         <h2>参与众筹</h2>
-        <p class="hint" style="margin-top: 0">输入金额后点「参与并支付」将唤起钱包；若未连接会先请求连接，再向<strong>主网</strong>上的测试众筹合约发送 BNB（真币，小额）。</p>
+        <p class="hint" style="margin-top: 0">输入金额后点「参与并支付」将唤起钱包；若未连接会先请求连接，再向众筹合约发送 BNB。</p>
         <p class="actions">
           <button type="button" id="btn-open-participate" class="btn primary">参与众筹</button>
         </p>
@@ -83,7 +83,7 @@
             <div class="progress-fill progress-fill-amount" id="amount-bar"></div>
           </div>
         </div>
-        <p class="hint" id="progress-hint">安装并启用钱包后，通过钱包在 BSC 主网（chainId 56）上的 RPC 加载链上数据。</p>
+        <p class="hint" id="progress-hint">安装并启用钱包后，通过钱包 RPC 加载链上数据。</p>
       </section>
 
       <section class="card" id="sec-contract">
@@ -92,13 +92,13 @@
         <p class="actions">
           <button type="button" id="btn-copy" class="btn primary">复制合约地址</button>
         </p>
-        <p class="hint">部署测试合约后，将地址写入本目录 <code>config.js</code>。</p>
+        <p class="hint">请与官方公告、源码中的 config.js、BscScan 已验证合约交叉核对后再转账。</p>
       </section>
 
       <section class="card" id="sec-treasury">
-        <h2>资金去向（treasury）</h2>
+        <h2>资金去向（多签）</h2>
         <p class="mono" id="multisig-display">加载中或请连接钱包…</p>
-        <p class="hint">以合约 <code>treasury()</code> 为准；主网请使用你可控的收款地址（如专用钱包或多签）。</p>
+        <p class="hint">以合约只读函数 <code>treasury()</code> 为准；成功众筹后 BNB 由合约转至此地址。</p>
       </section>
 
       <section class="card" id="sec-wallet">
@@ -115,7 +115,7 @@
           <p class="modal-range" id="modal-range-hint">正在读取链上限额…</p>
           <label class="modal-field">
             <span>金额（BNB）</span>
-            <input type="number" id="input-participate-amount" step="0.0001" min="0.0005" max="0.001" value="0.0005" autocomplete="off" />
+            <input type="number" id="input-participate-amount" step="0.01" min="0.5" max="1" value="0.5" autocomplete="off" />
           </label>
           <p class="hint modal-contract-line" id="modal-contract-line"></p>
           <div class="modal-actions">
@@ -128,8 +128,11 @@
       <section class="card security" id="sec-security">
         <h2>安全说明</h2>
         <ul>
-          <li>此为<strong>BSC 主网</strong>上的小额测试页：合约地址与正式版<strong>不同</strong>，请勿混用；RPC 与正式版一样由<strong>钱包主网节点</strong>提供。</li>
-          <li>金额以链上测试合约为准；点击「参与并支付」将发起主网交易，请以钱包中的<strong>收款地址、网络与金额</strong>为准。</li>
+          <li>点击「参与并支付」将发起链上交易；请以钱包弹窗中的<strong>收款地址与金额</strong>为准。</li>
+          <li>合约限制：最多 1000 个成功参与地址；<code>msg.sender</code> 不得为合约地址（<code>code.length != 0</code> 即拒绝）。</li>
+          <li>单笔金额由合约常量 <code>minWei</code> / <code>maxWei</code> 固定（本计划当前为小额区间），部署不可改；constructor 仅设 treasury、admin。</li>
+          <li><strong>admin</strong> 可 <code>sweep*</code> 转走合约内误转资产；请使用可信多签。</li>
+          <li>链上只读与交易均通过钱包扩展所配置的 RPC；前端依赖的 ethers 与页面同源分发，不依赖第三方脚本 CDN。</li>
         </ul>
       </section>
     </main>

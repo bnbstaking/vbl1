@@ -1,7 +1,6 @@
 /**
- * 测试版：合约单笔 0.0005～0.001 BNB（以部署网络为准）。
- * 默认 BSC 主网（chainId 56）；若改测测试网请改 chainId / chainName。
- * 只读与发交易均走钱包 RPC；ethers 见站点根目录 vendor/。
+ * 微波炉火种众筹计划 — 前端配置（与正式站同源 UI，合约为小额 minWei/maxWei）。
+ * BSC 主网 chainId 56；只读与发交易走钱包 RPC；vendor/ethers.umd.min.js 须与 index 一并部署。
  */
 window.CROWDFUND_CONFIG = {
   contractAddress: "0xD36c1B175A4d7688F8a6e6Fb16E3101090Aa950E",
